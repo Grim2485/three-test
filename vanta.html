@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vanta.js 範例</title>
+    <style>
+        /* 設定容器鋪滿整個視口 */
+        #vanta-bg {
+            width: 100%;
+            height: 100vh; /* 100% 視口高度 */
+            position: absolute; /* 確保它在背景 */
+            top: 0;
+            left: 0;
+            z-index: -1; /* 讓它在其他內容的下方 */
+        }
+        /* 確保 body 沒有預設邊距 */
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="vanta-bg"></div>
+
+    <div style="position: relative; padding: 50px; color: white;">
+        <h1>我的 Vanta 背景</h1>
+        <p>這段文字會顯示在動態背景之上。</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r121/three.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.waves.min.js"></script>
+    <script>
+        VANTA.WAVES({
+            el: "#vanta-bg",       // **指定容器的選擇器** (對應到步驟一的 div ID)
+            mouseControls: true,    // 允許滑鼠控制 (互動性)
+            touchControls: true,    // 允許觸控控制
+            minHeight: 200.00,      // 最小高度
+            minWidth: 200.00,       // 最小寬度
+            scale: 1.00,            // 縮放比例
+            scaleMobile: 1.00,      // 手機上的縮放比例
+            color: 0x4763ff,        // 效果的顏色
+            shininess: 15.00        // 光澤度
+        })
+    </script>
+    </body>
+</html>

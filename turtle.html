@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js 模型載入與滑鼠拖移視角</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+        } 
+        canvas { 
+            display: block; 
+        }
+    </style>
+</head>
+<body>
+    <script type="module">
+        // *** 模組導入 (引入核心、GLTFLoader 及 OrbitControls) ***
+        import * as THREE from 'https://cdn.skypack.dev/three@0.128.0';
+        import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.128.0/examples/jsm/loaders/GLTFLoader';
+        // 引入軌道控制器模組
+        import { OrbitControls } from 'https://cdn.skypack.dev/three@0.128.0/examples/jsm/controls/OrbitControls';
+        import { RGBELoader } from 'https://cdn.skypack.dev/three@0.128.0/examples/jsm/loaders/RGBELoader';
+
+
+        
+        // --- 核心設置 ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+            30, // 參數 1: 視角 (Field of View, FOV)
+            window.innerWidth / window.innerHeight, // 參數 2: 長寬比 (Aspect Ratio)
+            0.1, // 參數 3: 近裁面 (Near Clipping Plane)
+            1000 // 參數 4: 遠裁面 (Far Clipping Plane)
+        );
+        const renderer = new THREE.WebGLRenderer({ antialias: true ,alpha:true});
+        renderer.setSize(1000, 600);
+        document.body.appendChild(renderer.domElement);
+        
+        // --- 軌道控制器設置 ---
+        // 創建 OrbitControls 實例，將攝影機和渲染器的 DOM 元素傳入
+        const controls = new OrbitControls(camera, renderer.domElement);
+        // 設定旋轉中心 (通常設定為模型的中心點，這裡先設定為原點)
+        controls.target.set(0, 0, 0); 
+        // 啟用阻尼效果，讓旋轉更流暢 (如果啟用，則必須在 animate 函數中呼叫 update())
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+
+        // 背景
+        const rgbeLoader = new RGBELoader();
+
+        rgbeLoader.load(
+            './qwantani_moon_noon_puresky_1k.hdr', // HDR 檔案路徑
+            function (texture) {
+                // 1. 設定貼圖的映射模式
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+
+                // 2. 設定場景背景 (可選)
+                scene.background = texture;
+
+                // 3. 設定環境光照 (讓 PBR 材質可以反射環境光)
+                scene.environment = texture;
+            }
+        );
+        
+        // --- 光源設置 ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); 
+        scene.add(ambientLight); 
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); 
+        directionalLight.position.set(5, 5, 5); 
+        scene.add(directionalLight); 
+
+        let loadedModel; 
+
+        // --- 2. 載入模型 ---
+        const loader = new GLTFLoader();
+
+        loader.load(
+            './sea turtle 3d model (1).glb', 
+            function ( gltf ) {
+                loadedModel = gltf.scene;
+                scene.add(loadedModel);
+
+                // 將模型稍微向下移動
+                loadedModel.position.y = -1;
+                
+                // 設定攝影機初始位置，以便觀察模型
+                camera.position.set(0, 0, 2); 
+                
+                // *** 調整 controls.target，將環繞的中心點設為模型的位置 (Y 軸微調) ***
+                controls.target.set(loadedModel.position.x, loadedModel.position.y, loadedModel.position.z);
+                controls.update(); // 手動更新一次 controls
+
+                console.log('模型載入成功！');
+                animate();
+            },
+            undefined,
+            function ( error ) {
+                console.error( '載入模型時發生錯誤:', error );
+            }
+        );
+
+        // --- 3. 動畫渲染循環 ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // *** 關鍵變更 1: 更新控制器 ***
+            // 必須在每一幀呼叫，以便軌道控制器能處理使用者輸入和阻尼效果
+            controls.update(); 
+
+            // *** 關鍵變更 2: 移除自動旋轉 ***
+            // loadedModel 的自動旋轉程式碼已移除，現在由使用者控制
+
+            // 執行渲染
+            renderer.render(scene, camera);
+        }
+
+        // // --- 4. 響應式調整 ---
+        // window.addEventListener('resize', () => {
+        //     camera.aspect = window.innerWidth / window.innerHeight;
+        //     camera.updateProjectionMatrix();
+        //     renderer.setSize(window.innerWidth, window.innerHeight);
+        //     // 視窗大小改變時，控制器不需要額外調整，因為它只依賴 camera 和 DOM 元素
+        // });
+
+        // --- 點擊互動所需變數 ---
+    const raycaster = new THREE.Raycaster(); // 用於發射射線
+    const mouse = new THREE.Vector2(); // 用於儲存標準化後的滑鼠座標 (-1 到 +1)
+    let originalColor; // 用於儲存模型原本的顏色
+
+    // --- 5. 處理滑鼠點擊事件 ---
+    window.addEventListener('click', onClick, false);
+
+    function onClick(event) {
+        // 1. 計算滑鼠在 Canvas 上的標準化座標 (-1 到 +1)
+
+        // 由於您的 Canvas 大小是固定的 1000x600，而不是 window.innerWidth/innerHeight
+        // 我們需要根據 Canvas 的實際位置和尺寸來計算。
+
+        const canvasBounds = renderer.domElement.getBoundingClientRect();
+        
+        // X 軸座標: (滑鼠X - Canvas左邊界) / Canvas寬度 * 2 - 1
+        mouse.x = ( (event.clientX - canvasBounds.left) / canvasBounds.width ) * 2 - 1;
+        
+        // Y 軸座標: 1 - ( (滑鼠Y - Canvas上邊界) / Canvas高度 ) * 2
+        // Y 軸的座標系是反轉的 (上方是 1，下方是 -1)
+        mouse.y = - ( (event.clientY - canvasBounds.top) / canvasBounds.height ) * 2 + 1;
+        
+        // 2. 更新 Raycaster 的射線
+        // 設定射線的起點為攝影機，方向指向滑鼠點擊的 3D 空間點
+        raycaster.setFromCamera(mouse, camera);
+
+        // 3. 檢測射線與哪些物體相交
+        // loadedModel 是一個 Group 或 Scene，我們需要檢查它所有的子代
+        // true 表示遞歸檢查所有後代 (海龜的身體、頭部、四肢可能都是獨立的 Mesh)
+        const intersects = raycaster.intersectObjects(loadedModel.children, true);
+
+        // 4. 處理相交結果
+        if (intersects.length > 0) {
+            // intersects[0] 是離攝影機最近的相交物體
+            const clickedObject = intersects[0].object;
+
+            console.log("您點擊了:", clickedObject);
+
+            // 確保被點擊的物體具有材質和顏色屬性（例如 MeshStandardMaterial）
+            if (clickedObject.material && clickedObject.material.isMeshStandardMaterial) {
+                // 如果這是第一次點擊，儲存原本的顏色
+                if (!originalColor) {
+                    originalColor = clickedObject.material.color.clone();
+                }
+
+                // 改變顏色為綠色
+                clickedObject.material.color.set(0x00ff00);
+            }
+        } else {
+            // 如果沒有點擊到任何東西，嘗試恢復顏色 (可選)
+            if (loadedModel && originalColor) {
+                loadedModel.traverse((child) => {
+                    if (child.isMesh && child.material && child.material.isMeshStandardMaterial) {
+                         // 這裡假設所有組件的顏色都一樣
+                         child.material.color.copy(originalColor);
+                    }
+                });
+                originalColor = null; // 清除儲存的顏色，等待下一次點擊
+            }
+        }
+    }
+    </script>
+</body>
+</html>
